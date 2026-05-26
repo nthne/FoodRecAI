@@ -1,166 +1,132 @@
-# FoodRecAI
-Machine Learning-based Restaurant Recommendation System Developed a personalized restaurant recommendation system using traditional machine learning techniques.
+# Foodie Finder
 
+Foodie Finder is a machine learning project for restaurant review sentiment analysis and restaurant recommendation. The system collects review data from Foody.vn, cleans noisy reviews, trains multiple classical ML sentiment models, then uses the best model to score and recommend restaurants in a web demo.
 
-# Foody Review Scraping Pipeline  
-*A Large-Scale, Login-Aware Web Data Collection Framework for Restaurant Reviews*
+## Data Scraping
 
----
+The scraping pipeline collects restaurant metadata and user reviews from Foody.vn. It supports browser-based crawling, dynamic page loading, retry handling, checkpointing, and JSON/JSONL output.
 
-## Abstract
+Main scraping outputs:
+- Restaurant data
+- Review data
+- Restaurant-review mapping
+- Cleaned review dataset for ML
 
-This repository presents a scalable web scraping pipeline for collecting large-scale restaurant review data from Foody.vn. Unlike traditional crawlers, the system accounts for **authentication constraints, dynamic content loading, and anti-scraping mechanisms** by integrating browser-based interaction with controlled user simulation. The pipeline supports **checkpointing, fault tolerance, and resumability**, enabling efficient collection of hundreds of thousands of reviews across thousands of restaurants.
+The raw review data is evaluated and cleaned by removing reviews detected as duplicate, too short, spam/ad-like, or rating-content mismatch.
 
----
+## Main ML Project
 
-## 🎯 Objective
+The main ML task is sentiment analysis on restaurant reviews. Each review is classified into sentiment labels such as negative, neutral, or positive based on the review rating and content.
 
-The goal of this project is to construct a **high-quality review dataset** for downstream tasks such as:
+Before training, reviews with `rating == 10` are removed to reduce bias from overly perfect ratings.
 
-- Sentiment analysis  
-- Recommendation systems  
-- User behavior modeling  
-- Natural language processing on user-generated content  
+### Models
 
----
+The project compares these machine learning models:
 
-## System Design
+1. TF-IDF + Naive Bayes
+2. TF-IDF + Logistic Regression
+3. TF-IDF + Linear SVM
+4. TF-IDF + Random Forest
+5. TF-IDF + XGBoost
 
-### 1. Authentication-Aware Crawling
-- Requires manual login via a real browser session  
-- Ensures access to full review data  
+### Evaluation Metrics
 
-### 2. Dynamic Content Handling
-- Simulates real user behavior (scrolling, delays)  
-- Extracts client-side rendered reviews  
+Each model is evaluated using:
 
-### 3. Scalability & Robustness
-- Checkpoint-based progress tracking  
-- Resume after interruption  
-- Automatic retry on failures  
+- Accuracy
+- Precision by class
+- Recall by class
+- F1-score by class
+- Macro F1
+- Weighted F1
+- Confusion Matrix
 
-### 4. Data Consistency
-- Structured JSON output  
-- Unified schema across all entries  
+Metric formulas:
 
----
+```text
+Accuracy = (TP + TN) / (TP + TN + FP + FN)
 
-## Pipeline Overview
-```mermaid
-flowchart TD
-    A[Input: Restaurant URLs] --> B[Browser + Login]
-    B --> C[Scroll Loading]
-    C --> D[Extraction]
-    D --> E[Checkpoint + Logging]
-    E --> F[Output JSON]
+Precision = TP / (TP + FP)
+
+Recall = TP / (TP + FN)
+
+F1-score = 2 * Precision * Recall / (Precision + Recall)
+
+Macro F1 = average(F1-score of all classes)
+
+Weighted F1 = sum(F1_class * support_class) / total_samples
 ```
 
----
+Where:
+- `TP`: correctly predicted samples of a class
+- `FP`: samples incorrectly predicted as that class
+- `FN`: samples of that class predicted as another class
+- `TN`: samples correctly predicted as not belonging to that class
+- `support_class`: number of true samples in that class
 
-## Dataset Description
+After all models are implemented and evaluated, the best model will be selected based mainly on Macro F1 and Weighted F1, then integrated into the web demo.
 
-- **Domain:** Restaurant reviews (Hanoi, Vietnam)  
-- **Scale:**
-  - ~7,500 restaurants  
-  - Hundreds of thousands of reviews  
+### Algorithm Overview
 
-### Attributes:
-- Review ID  
-- User ID  
-- Restaurant ID  
-- Rating  
-- Content  
-- Timestamp  
+All models use TF-IDF features. TF-IDF converts review text into numerical vectors by increasing the weight of words that are frequent in one review but less common across the full dataset. This helps the model focus on more informative words instead of very common words.
 
----
+- **Naive Bayes:** a probabilistic classifier based on Bayes' theorem. It assumes words/features are conditionally independent given the sentiment class. This assumption is simple but often works well for text classification.
+- **Logistic Regression:** a linear classifier that learns feature weights and estimates the probability of each sentiment class. It is strong for sparse TF-IDF text features and easy to interpret.
+- **Linear SVM:** a margin-based linear classifier that tries to separate classes with the largest possible margin. It is commonly effective for high-dimensional text classification.
+- **Random Forest:** an ensemble of decision trees trained on different data/feature samples. It can model non-linear patterns, but may be less efficient on very sparse TF-IDF vectors.
+- **XGBoost:** a gradient boosting model that builds trees sequentially, where each new tree corrects errors from previous trees. It is powerful for structured features and will be tested against the linear text baselines.
 
-## Data Format
+## Current Naive Bayes Pipeline
 
-```json
-{
-  "url": "...",
-  "review": [
-    {
-      "ID": "...",
-      "RestaurantID": "...",
-      "UserID": "...",
-      "Rating": "...",
-      "Content": "...",
-      "CreatedAt": "..."
-    }
-  ],
-  "initData": {}
-}
+The Naive Bayes baseline is implemented in:
+
+```text
+algorithm/naive_bayes/
 ```
 
-## Experimental Protocol
+Main files:
+- `dataset.py`: load clean review data, remove `rating == 10`, split train/test
+- `model.py`: define TF-IDF + Naive Bayes pipeline
+- `train.py`: train and save the model
+- `evaluate.py`: evaluate the saved model and export metrics/confusion matrix
 
-### Step 1: Validation (Mandatory)
+Run:
 
 ```bash
-python3 test_review.py
-```
-- Login when prompted
-- Press ENTER after successful login
-- Check output in:
-  `data/test_review_result.json`
-
-❗ If reviews ≤ 13 → login failed
-
-### Step 2: Full Scraping
-
-```bash
-python3 scrape_review_advanced.py
+python algorithm/naive_bayes/train.py
+python algorithm/naive_bayes/evaluate.py
 ```
 
----
+## Web Demo: Foodie Finder
 
-## Important Constraints
-- Requires manual login via browser
-- Headless mode is not supported
-- Without login → only ~13 reviews per restaurant
+The final selected model will be integrated into a web demo named `foodie-finder`.
 
-## Performance
-- Runtime: ~4–6 hours
-- Output size: ~300–500 MB
-- Scale: 100k+ reviews
+The demo will recommend the top 10 restaurants near the user's location. Restaurant ranking will be based on a combined score using:
 
-## Limitations
-- Manual login required
-- Sensitive to UI changes from Foody.vn
-- Requires controlled interaction speed
+- Total number of reviews
+- Number of high-quality reviews
+- Predicted sentiment distribution
+- Review quality signals
+- User preference fields such as:
+  - Food quality
+  - Service
+  - Price
+  - Space / atmosphere
 
-## Future Work
-- Session-based authentication automation
-- Distributed scraping
-- Integration with ML pipelines
+The scoring formula will adapt to the user's needs. For example, if the user cares more about price and service, those fields will receive higher weights in the final restaurant score.
 
-## Use Cases
-- Sentiment analysis
-- Recommendation systems
-- Behavioral analytics
-- Vietnamese NLP research
+## New Restaurant Handling
 
-## Reproducibility
+If a user searches for a restaurant that is not available in the local database but exists on Foody.vn, the system will:
 
-```bash
-# Install dependencies
-pip install playwright
-python -m playwright install chromium
+1. Crawl the restaurant's reviews from Foody.vn
+2. Clean and preprocess the reviews
+3. Run the selected sentiment model
+4. Calculate the restaurant score
+5. Summarize the restaurant's strengths and weaknesses
+6. Show the result in the recommendation/demo interface
 
-# Run test
-python3 test_review.py
+## Project Goal
 
-# Run full pipeline
-python3 scrape_review_advanced.py
-```
-
-## Key Requirement
-
-- Scraping Foody requires:
-
-✅ Real login
-✅ Real browser
-✅ Real scrolling
-
-❗ Missing any → invalid results
+The goal is to build an end-to-end Vietnamese restaurant recommendation system that combines review crawling, sentiment analysis, restaurant scoring, and location-based recommendation into a usable web demo.
